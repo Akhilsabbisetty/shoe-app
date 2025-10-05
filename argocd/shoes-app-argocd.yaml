@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: shoes-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/<GITHUB_ORG>/shoes-app.git'
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: shoes
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

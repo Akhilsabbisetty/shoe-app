@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    environment {
+        JFROG_URL = 'https://artifactory.akhilsabbisetty.site'
+        JFROG_CREDENTIALS = 'jfrog-creds'
+        SONAR_TOKEN = credentials('sonar-token')
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/Akhilsabbisetty/shoe-app.git', branch: 'main'
+            }
+        }
+        stage('Maven Build & Test') {
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+        stage('SonarQube Scan') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
+                }
+            }
+        }
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    docker.build("shoes-frontend", "./frontend").push()
+                    docker.build("shoes-backend", "./backend").push()
+                }
+            }
+        }
+        stage('Trigger ArgoCD Sync') {
+            steps {
+                sh 'argocd app sync shoes-app'
+            }
+        }
+    }
+}
