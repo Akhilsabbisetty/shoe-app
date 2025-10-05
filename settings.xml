@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+  <servers>
+    <server>
+      <id>jfrog</id>
+      <!-- Username & password will come from Jenkins credentials -->
+    </server>
+  </servers>
+
+  <profiles>
+    <profile>
+      <id>artifactory</id>
+      <repositories>
+        <repository>
+          <id>jfrog</id>
+          <url>https://artifactory.akhilsabbisetty.site/artifactory/maven-release</url>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>jfrog</id>
+          <url>https://artifactory.akhilsabbisetty.site/artifactory/maven-release</url>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+
+  <activeProfiles>
+    <activeProfile>artifactory</activeProfile>
+  </activeProfiles>
+</settings>
