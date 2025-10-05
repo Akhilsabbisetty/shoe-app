@@ -16,7 +16,7 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
-                    credentialsId: 'github-token'
+                    credentialsId: 'b45af77c-7e4b-4a53-961e-392689db2732'
             }
         }
 
