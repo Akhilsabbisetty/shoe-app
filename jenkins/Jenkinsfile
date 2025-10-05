@@ -1,40 +1,103 @@
 pipeline {
     agent any
+
     environment {
+        MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
+        APP_NAME = "shoe-app"
+        DOCKER_IMAGE_FRONTEND = "yourdockerhubusername/shoes-frontend"
+        DOCKER_IMAGE_BACKEND = "yourdockerhubusername/shoes-backend"
+        K8S_NAMESPACE = "shoes"
         JFROG_URL = 'https://artifactory.akhilsabbisetty.site'
-        JFROG_CREDENTIALS = 'jfrog-creds'
-        SONAR_TOKEN = credentials('sonar-token')
+        SONAR_URL = 'http://13.201.95.250:9000' // replace with your SonarQube IP
+        MAIL_TO = 'sabbisettyakhil2414@gmail.com'
     }
+
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Code') {
             steps {
-                git url: 'https://github.com/Akhilsabbisetty/shoe-app.git', branch: 'main'
+                git branch: 'main',
+                    url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
+                    credentialsId: 'github-token'
             }
         }
-        stage('Maven Build & Test') {
+
+        stage('Maven Build & Deploy to JFrog') {
             steps {
-                sh 'mvn clean package'
-            }
-        }
-        stage('SonarQube Scan') {
-            steps {
-                withSonarQubeEnv('SonarQube') {
-                    sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
+                withCredentials([usernamePassword(credentialsId: 'jFrog-Cred',
+                                                  usernameVariable: 'JFROG_USER',
+                                                  passwordVariable: 'JFROG_PASS')]) {
+                    sh """
+                      mvn clean install -s $MAVEN_SETTINGS \
+                        -DaltDeploymentRepository=jfrog::default::$JFROG_URL/artifactory/maven-release \
+                        -Djfrog.user=$JFROG_USER \
+                        -Djfrog.password=$JFROG_PASS
+                    """
                 }
             }
         }
-        stage('Docker Build & Push') {
+
+        stage('SonarQube Analysis') {
             steps {
-                script {
-                    docker.build("shoes-frontend", "./frontend").push()
-                    docker.build("shoes-backend", "./backend").push()
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                      mvn sonar:sonar \
+                        -Dsonar.projectKey=$APP_NAME \
+                        -Dsonar.host.url=$SONAR_URL \
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
                 }
             }
         }
-        stage('Trigger ArgoCD Sync') {
+
+        stage('Docker Build, Trivy Scan & Push') {
             steps {
-                sh 'argocd app sync shoes-app'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
+                                                  usernameVariable: 'DOCKER_USER',
+                                                  passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                      docker login -u $DOCKER_USER -p $DOCKER_PASS
+                      docker build -t $DOCKER_IMAGE_FRONTEND:latest ./frontend
+                      docker build -t $DOCKER_IMAGE_BACKEND:latest ./backend
+                      
+                      trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE_FRONTEND:latest
+                      trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE_BACKEND:latest
+                      
+                      docker push $DOCKER_IMAGE_FRONTEND:latest
+                      docker push $DOCKER_IMAGE_BACKEND:latest
+                    """
+                }
             }
+        }
+
+        stage('ArgoCD Deploy') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'argocd-creds',
+                                                  usernameVariable: 'ARGO_USER',
+                                                  passwordVariable: 'ARGO_PASS')]) {
+                    sh """
+                      argocd login argocd.akhilsabbisetty.site --username $ARGO_USER --password $ARGO_PASS --insecure
+                      argocd app sync $APP_NAME
+                      argocd app wait $APP_NAME --health --timeout 300
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        failure {
+            mail to: "$MAIL_TO",
+                 subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Please check Jenkins build logs at ${env.BUILD_URL}"
+        }
+        success {
+            mail to: "$MAIL_TO",
+                 subject: "Build SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Congratulations! Build & deploy succeeded.\nCheck ArgoCD app status at argocd.akhilsabbisetty.site"
         }
     }
 }
