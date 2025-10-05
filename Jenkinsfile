@@ -2,7 +2,7 @@ pipeline {
     agent any
     tools {
         jdk 'JDK17'
-        maven 'Maven3'
+        maven 'Maven'
     }
     environment {
         MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
