@@ -4,7 +4,7 @@ pipeline {
     environment {
         MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
         APP_NAME       = "shoe-app"
-        DOCKER_IMAGE   = "yourdockerhubusername/shoe-app"
+        DOCKER_IMAGE   = "akhilsabbisetty/shoe-app"
         K8S_NAMESPACE  = "shoes"
         SONAR_URL      = "http://13.201.95.250:9000"
         ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
@@ -16,21 +16,33 @@ pipeline {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
-                    credentialsId: 'b45af77c-7e4b-4a53-961e-392689db2732'
+                    credentialsId: 'github-creds'
             }
         }
 
         stage('Maven Build & Deploy to JFrog') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'jFrog-Cred', 
-                                                  usernameVariable: 'JFROG_USER', 
+                writeFile file: 'settings.xml', text: '''
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>jfrog</id>
+    </server>
+  </servers>
+</settings>
+'''
+                withCredentials([usernamePassword(credentialsId: 'jFrog-Cred',
+                                                  usernameVariable: 'JFROG_USER',
                                                   passwordVariable: 'JFROG_PASS')]) {
-                    sh '''
+                    sh """
                       mvn clean install -s $MAVEN_SETTINGS \
                         -DaltDeploymentRepository=jfrog::default::https://artifactory.akhilsabbisetty.site/artifactory/maven-release \
                         -Djfrog.user=$JFROG_USER \
                         -Djfrog.password=$JFROG_PASS
-                    '''
+                    """
                 }
             }
         }
@@ -47,6 +59,17 @@ pipeline {
             }
         }
 
+        stage('Frontend Build') {
+            steps {
+                dir('frontend') {
+                    sh '''
+                      npm install
+                      npm run build
+                    '''
+                }
+            }
+        }
+
         stage('Docker Build, Trivy Scan & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', 
@@ -54,10 +77,13 @@ pipeline {
                                                   passwordVariable: 'DOCKER_PASS')]) {
                     sh """
                       docker login -u $DOCKER_USER -p $DOCKER_PASS
+
                       docker build -t $DOCKER_IMAGE:frontend-${BUILD_NUMBER} ./frontend
-                      docker build -t $DOCKER_IMAGE:backend-${BUILD_NUMBER} ./backend
+                      docker build -t $DOCKER_IMAGE:backend-${BUILD_NUMBER} .
+
                       trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:frontend-${BUILD_NUMBER}
                       trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:backend-${BUILD_NUMBER}
+
                       docker push $DOCKER_IMAGE:frontend-${BUILD_NUMBER}
                       docker push $DOCKER_IMAGE:backend-${BUILD_NUMBER}
                     """
