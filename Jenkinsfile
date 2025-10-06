@@ -14,6 +14,7 @@ pipeline {
 
     stage('Checkout') {
       steps {
+        cleanWs()
         git branch: 'main',
             url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
             credentialsId: 'github-creds'
@@ -22,10 +23,10 @@ pipeline {
 
     stage('Maven Build & Deploy to JFrog') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'jfrog-creds',
+        withCredentials([usernamePassword(credentialsId: 'jFrog-Cred',
                                           usernameVariable: 'JFROG_USER',
                                           passwordVariable: 'JFROG_PASS')]) {
-          // write settings.xml with injected creds
+
           writeFile file: 'settings.xml', text: """
 <?xml version="1.0" encoding="UTF-8"?>
 <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
@@ -44,14 +45,13 @@ pipeline {
             mvn clean deploy -s $MAVEN_SETTINGS \
               -DaltDeploymentRepository=jfrog::default::https://artifactory.akhilsabbisetty.site/artifactory/maven-release
           """
-        } // withCredentials
+        }
       }
     }
 
     stage('SonarQube Analysis') {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-          // Optional: add wait/retry if Sonar is slow to start.
           sh """
             mvn sonar:sonar \
               -Dsonar.host.url=$SONAR_URL \
@@ -61,26 +61,30 @@ pipeline {
       }
     }
 
-    stage('Frontend Build (must exist)') {
+    stage('Frontend Build') {
       steps {
         script {
-          // debug listing so you can see the workspace layout in logs
-          echo "Workspace root: ${env.WORKSPACE}"
-          sh "ls -la ${env.WORKSPACE} || true"
+          echo "Verifying frontend folder..."
           sh "ls -la ${env.WORKSPACE}/frontend || true"
 
-          // fail fast if package.json missing (you requested: do not skip)
+          // 🔸 Ensure package-lock.json exists — if not, copy from local path
           sh """
-            if [ ! -f "${env.WORKSPACE}/frontend/package.json" ]; then
-              echo "ERROR: frontend/package.json not found at ${env.WORKSPACE}/frontend"
-              exit 1
+            if [ ! -f "${env.WORKSPACE}/frontend/package-lock.json" ]; then
+              echo "package-lock.json missing in workspace, copying from local /root/git/shoe-app/frontend/"
+              cp /root/git/shoe-app/frontend/package-lock.json ${env.WORKSPACE}/frontend/ || true
             fi
           """
 
-          // Use Dockerized node (ensures consistent environment and avoids relying on agent node/npm)
-          // Requires docker to be available on Jenkins agent (you have docker already in earlier runs)
+          // 🔸 Install using npm ci if lock file exists, otherwise fallback to npm install
           sh """
-            docker run --rm -v "${env.WORKSPACE}/frontend":/workspace -w /workspace node:18 bash -lc "npm ci && npm run build"
+            docker run --rm -v "${env.WORKSPACE}/frontend":/workspace -w /workspace node:18 bash -lc '
+              if [ -f package-lock.json ]; then
+                npm ci
+              else
+                npm install
+              fi
+              npm run build
+            '
           """
         }
       }
@@ -92,20 +96,14 @@ pipeline {
                                           usernameVariable: 'DOCKER_USER',
                                           passwordVariable: 'DOCKER_PASS')]) {
           sh """
-            # safer docker login
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-            # FRONTEND image: expects frontend/Dockerfile present
             docker build -f frontend/Dockerfile -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} ./frontend
+            docker build -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
 
-            # BACKEND image: expects Dockerfile.backend at repo root
-            docker build -f Dockerfile.backend -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
-
-            # STATIC SCAN WITH TRIVY (fail build on HIGH/CRITICAL)
             trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
             trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
 
-            # push images
             docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
             docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
           """
@@ -127,7 +125,7 @@ pipeline {
       }
     }
 
-  } // stages
+  }
 
   post {
     always {
