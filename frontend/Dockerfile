@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine3.22 AS build
+FROM node:18-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -8,7 +8,7 @@ COPY . .
 RUN npm run build
 
 # Runtime stage
-FROM nginx:stable-alpine3.22
+FROM nginx:stable-alpine
 # Remove default nginx content
 RUN rm -rf /usr/share/nginx/html/*
 # Copy the actual build output
