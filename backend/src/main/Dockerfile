@@ -1,7 +1,10 @@
-FROM maven:3.9.0-eclipse-temurin-20
+FROM eclipse-temurin:17-jre-alpine AS runtime
+
+# Set the expected JAR path. If your artifactId/version differs, update the path.
+ARG JAR_FILE=target/shoes-backend-1.0.0.jar
+
 WORKDIR /app
-COPY src/ src/
-COPY pom.xml .
-RUN mvn clean package -DskipTests
+COPY ${JAR_FILE} /app/app.jar
+
 EXPOSE 8080
-CMD ["java","-jar","target/shoes-backend-1.0.0.jar"]
+ENTRYPOINT ["java","-jar","/app/app.jar"]
