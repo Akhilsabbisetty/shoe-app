@@ -64,18 +64,18 @@ pipeline {
     stage('Frontend Build') {
       steps {
         script {
-          echo "Verifying frontend folder..."
+          echo "📂 Verifying frontend folder structure..."
           sh "ls -la ${env.WORKSPACE}/frontend || true"
 
-          // 🔸 Ensure package-lock.json exists — if not, copy from local path
+          // Ensure package-lock.json exists — if not, copy from local
           sh """
             if [ ! -f "${env.WORKSPACE}/frontend/package-lock.json" ]; then
-              echo "package-lock.json missing in workspace, copying from local /root/git/shoe-app/frontend/"
+              echo "⚠️ package-lock.json missing in workspace, copying from local /root/git/shoe-app/frontend/"
               cp /root/git/shoe-app/frontend/package-lock.json ${env.WORKSPACE}/frontend/ || true
             fi
           """
 
-          // 🔸 Install using npm ci if lock file exists, otherwise fallback to npm install
+          // Install & build frontend
           sh """
             docker run --rm -v "${env.WORKSPACE}/frontend":/workspace -w /workspace node:18 bash -lc '
               if [ -f package-lock.json ]; then
@@ -98,12 +98,19 @@ pipeline {
           sh """
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
+            echo "🐳 Building frontend image..."
             docker build -f frontend/Dockerfile -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} ./frontend
-            docker build -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
 
+            echo "🐳 Building backend image..."
+            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} ./backend
+
+            echo "🔍 Running Trivy scan on frontend..."
             trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
+
+            echo "🔍 Running Trivy scan on backend..."
             trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
 
+            echo "🚀 Pushing images to Docker Hub..."
             docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
             docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
           """
