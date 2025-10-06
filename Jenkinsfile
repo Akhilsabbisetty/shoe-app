@@ -38,7 +38,7 @@ pipeline {
                                                   usernameVariable: 'JFROG_USER',
                                                   passwordVariable: 'JFROG_PASS')]) {
                     sh """
-                      mvn clean install -s $MAVEN_SETTINGS \
+                      mvn clean deploy -s $MAVEN_SETTINGS \
                         -DaltDeploymentRepository=jfrog::default::https://artifactory.akhilsabbisetty.site/artifactory/maven-release \
                         -Djfrog.user=$JFROG_USER \
                         -Djfrog.password=$JFROG_PASS
@@ -63,7 +63,13 @@ pipeline {
             steps {
                 dir('frontend') {
                     sh '''
-                      npm install
+                      # Ensure Node is available
+                      if ! command -v node &> /dev/null; then
+                        curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+                        apt-get install -y nodejs
+                      fi
+
+                      npm ci
                       npm run build
                     '''
                 }
@@ -78,12 +84,17 @@ pipeline {
                     sh """
                       docker login -u $DOCKER_USER -p $DOCKER_PASS
 
+                      # Frontend image
                       docker build -t $DOCKER_IMAGE:frontend-${BUILD_NUMBER} ./frontend
+
+                      # Backend image
                       docker build -t $DOCKER_IMAGE:backend-${BUILD_NUMBER} .
 
+                      # Trivy scan
                       trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:frontend-${BUILD_NUMBER}
                       trivy image --exit-code 1 --severity HIGH,CRITICAL $DOCKER_IMAGE:backend-${BUILD_NUMBER}
 
+                      # Push to registry
                       docker push $DOCKER_IMAGE:frontend-${BUILD_NUMBER}
                       docker push $DOCKER_IMAGE:backend-${BUILD_NUMBER}
                     """
