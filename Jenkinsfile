@@ -102,7 +102,8 @@ pipeline {
             docker build -f frontend/Dockerfile -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} ./frontend
 
             echo "🐳 Building backend image..."
-            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} ./backend
+            # FIX: build context = root, Dockerfile in backend/
+            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
 
             echo "🔍 Running Trivy scan on frontend..."
             trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
