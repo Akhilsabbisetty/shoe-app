@@ -2,7 +2,8 @@
   "name": "shoes-frontend",
   "version": "1.0.0",
   "scripts": {
-    "start": "serve -s src -l 80"
+    "build": "echo 'Building static frontend...' && mkdir -p dist && cp -r src/* index.html app.js dist/",
+    "start": "serve -s dist -l 80"
   },
   "dependencies": {
     "serve": "^14.2.0"
