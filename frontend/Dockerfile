@@ -1,12 +1,17 @@
+# Build stage
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# This creates the 'dist' folder
 RUN npm run build
 
-# runtime stage
+# Runtime stage
 FROM nginx:stable-alpine
-# adjust the path below if your framework outputs to 'dist' or another folder
-COPY --from=build /app/build /usr/share/nginx/html
+# Remove default nginx content
+RUN rm -rf /usr/share/nginx/html/*
+# Copy the actual build output
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
