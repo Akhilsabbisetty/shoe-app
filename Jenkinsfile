@@ -23,7 +23,7 @@ pipeline {
 
     stage('Maven Build & Deploy to JFrog') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'jFrog-Cred',
+        withCredentials([usernamePassword(credentialsId: 'jfrog-creds',
                                           usernameVariable: 'JFROG_USER',
                                           passwordVariable: 'JFROG_PASS')]) {
 
