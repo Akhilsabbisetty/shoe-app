@@ -7,7 +7,6 @@
   <servers>
     <server>
       <id>jfrog</id>
-      <!-- Username & password will come from Jenkins credentials -->
     </server>
   </servers>
 
