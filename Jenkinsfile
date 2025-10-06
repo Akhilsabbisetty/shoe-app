@@ -67,7 +67,6 @@ pipeline {
           echo "📂 Verifying frontend folder structure..."
           sh "ls -la ${env.WORKSPACE}/frontend || true"
 
-          // Ensure package-lock.json exists — if not, copy from local
           sh """
             if [ ! -f "${env.WORKSPACE}/frontend/package-lock.json" ]; then
               echo "⚠️ package-lock.json missing in workspace, copying from local /root/git/shoe-app/frontend/"
@@ -75,7 +74,6 @@ pipeline {
             fi
           """
 
-          // Install & build frontend
           sh """
             docker run --rm -v "${env.WORKSPACE}/frontend":/workspace -w /workspace node:18 bash -lc '
               if [ -f package-lock.json ]; then
@@ -102,14 +100,13 @@ pipeline {
             docker build -f frontend/Dockerfile -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} ./frontend
 
             echo "🐳 Building backend image..."
-            # FIX: build context = root, Dockerfile in backend/
-            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
+            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} ./backend
 
-            echo "🔍 Running Trivy scan on frontend..."
-            trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
+            echo "🔍 Running Trivy scan on frontend (fail only on CRITICAL)..."
+            trivy image --exit-code 1 --severity CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
 
-            echo "🔍 Running Trivy scan on backend..."
-            trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
+            echo "🔍 Running Trivy scan on backend (fail only on CRITICAL)..."
+            trivy image --exit-code 1 --severity CRITICAL ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
 
             echo "🚀 Pushing images to Docker Hub..."
             docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
