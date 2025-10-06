@@ -1,10 +1,12 @@
+# Build stage
 FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY backend/src ./src
-RUN mvn -f pom.xml clean package -DskipTests
+RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:17-jre-alpine AS runtime
+# Runtime stage
+FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/shoes-backend-1.0.0.jar /app/app.jar
 EXPOSE 8080
