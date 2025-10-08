@@ -16,6 +16,6 @@ spec:
       serviceAccountName: shoes-app-sa
       containers:
       - name: backend
-        image: <JFROG_HOST>/docker-local/shoes-backend:latest
+        image: akhilsabbisetty/shoe-app:backend-latest  # Use the actual Docker image pushed from CI
         ports:
         - containerPort: 8080
