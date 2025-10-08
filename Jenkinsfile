@@ -124,7 +124,7 @@ pipeline {
           sh """
             argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure
             argocd app sync $APP_NAME
-            argocd app wait $APP_NAME --health --timeout 300
+            argocd app wait $APP_NAME --health --timeout 600
           """
         }
       }

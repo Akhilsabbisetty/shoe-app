@@ -14,8 +14,23 @@ spec:
         app: backend
     spec:
       serviceAccountName: shoes-app-sa
+      imagePullSecrets:
+        - name: jfrog-docker-cred  # Replace if using private registry
       containers:
-      - name: backend
-        image: akhilsabbisetty/shoe-app:backend-latest  # Use the actual Docker image pushed from CI
-        ports:
-        - containerPort: 8080
+        - name: backend
+          image: akhilsabbisetty/shoe-app:backend-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /actuator/health  # adjust if your app exposes health on a different path
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10

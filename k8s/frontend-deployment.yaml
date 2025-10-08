@@ -14,8 +14,23 @@ spec:
         app: frontend
     spec:
       serviceAccountName: shoes-app-sa
+      imagePullSecrets:
+        - name: jfrog-docker-cred  # Replace if using private registry
       containers:
-      - name: frontend
-        image: akhilsabbisetty/shoe-app:frontend-latest  # Replace with the actual Docker image tag from CI
-        ports:
-        - containerPort: 80
+        - name: frontend
+          image: akhilsabbisetty/shoe-app:frontend-latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
