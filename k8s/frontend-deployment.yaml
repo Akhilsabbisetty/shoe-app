@@ -14,23 +14,20 @@ spec:
         app: frontend
     spec:
       serviceAccountName: shoes-app-sa
-      imagePullSecrets:
-        - name: jfrog-docker-cred  # Replace if using private registry
       containers:
-        - name: frontend
-          image: akhilsabbisetty/shoe-app:frontend-latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 80
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 80
-            initialDelaySeconds: 5
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 80
-            initialDelaySeconds: 10
-            periodSeconds: 10
+      - name: frontend
+        image: akhilsabbisetty/shoe-app:frontend-latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: shoes
+spec:
+  selector:
+    app: frontend
+  ports:
+  - port: 80
+    targetPort: 80

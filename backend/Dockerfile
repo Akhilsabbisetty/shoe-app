@@ -1,17 +1,13 @@
-# Build stage
+# Stage 1: Build the JAR
 FROM maven:3.9.6-eclipse-temurin-17 AS build
 WORKDIR /app
-
-# Copy root pom.xml and backend src folder
 COPY pom.xml .
-COPY backend/src ./src
-
-# Build the JAR
+COPY src ./src
 RUN mvn clean package -DskipTests
 
-# Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+# Stage 2: Run the JAR
+FROM eclipse-temurin:17-jdk-jammy
 WORKDIR /app
-COPY --from=build /app/target/shoes-backend-1.0.0.jar /app/app.jar
+COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "app.jar"]
