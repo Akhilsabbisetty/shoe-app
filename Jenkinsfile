@@ -116,6 +116,20 @@ pipeline {
       }
     }
 
+    stage('Update K8s Manifests') {   // 🟡 This dynamically updates image tags before ArgoCD sync
+      steps {
+        script {
+          sh """
+            sed -i 's#${DOCKER_IMAGE}:frontend-[0-9]*#${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}#' k8s/frontend-deployment.yaml
+            sed -i 's#${DOCKER_IMAGE}:backend-[0-9]*#${DOCKER_IMAGE}:backend-${BUILD_NUMBER}#' k8s/backend-deployment.yaml
+          """
+          sh "git add k8s/frontend-deployment.yaml k8s/backend-deployment.yaml"
+          sh "git commit -m '🔄 Update image tags to build ${BUILD_NUMBER}' || true"
+          sh "git push origin main"
+        }
+      }
+    }
+
     stage('Argo CD Deploy') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'argocd-creds',
