@@ -6,7 +6,7 @@ pipeline {
     APP_NAME       = "shoe-app"
     DOCKER_IMAGE   = "akhilsabbisetty/shoe-app"
     K8S_NAMESPACE  = "shoes"
-    SONAR_URL      = "http://3.110.86.48:9000"
+    SONAR_URL      = "http://3.6.40.138:9000"
     ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
   }
 
