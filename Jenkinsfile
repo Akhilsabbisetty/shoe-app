@@ -18,6 +18,7 @@ pipeline {
         git branch: 'main',
             url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
             credentialsId: 'github-creds'
+        sh 'ls -R'
       }
     }
 
