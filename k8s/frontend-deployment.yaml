@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: REPLACE_FRONTEND_IMAGE
+        image: akhilsabbisetty/shoe-app:frontend-latest
+
         ports:
         - containerPort: 80
         readinessProbe:
