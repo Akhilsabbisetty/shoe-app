@@ -115,19 +115,21 @@ pipeline {
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
-          # Use dockerized kubectl
           docker run --rm \
             -v /var/lib/jenkins/.kube:/root/.kube \
-            -v \$(pwd):/workdir -w /workdir \
-            bitnami/kubectl:latest apply -f k8s/backend-deployment.yaml -n shoes
+            -v ${WORKSPACE}:/workdir -w /workdir \
+            bitnami/kubectl:latest \
+            kubectl --server=https://10.0.101.179:443 apply -f k8s/backend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
 
-          docker run --rm \
-            -v /var/lib/jenkins/.kube:/root/.kube \
-            -v \$(pwd):/workdir -w /workdir \
-            bitnami/kubectl:latest apply -f k8s/frontend-deployment.yaml -n shoes
+           docker run --rm \
+             -v /var/lib/jenkins/.kube:/root/.kube \
+             -v ${WORKSPACE}:/workdir -w /workdir \
+             bitnami/kubectl:latest \
+             kubectl --server=https://10.0.101.179:443 apply -f k8s/frontend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
         """
      }
-   }
+  }
+
 
     stage('ArgoCD Sync') {
       steps {
