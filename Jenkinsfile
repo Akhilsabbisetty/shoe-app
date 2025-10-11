@@ -44,11 +44,11 @@ pipeline {
 
             // ✅ Frontend Sonar Scan (Node + Scanner CLI)
             dir('frontend') {
-              sh 'sudo chown -R 1000:1000 .'  // fix for AccessDeniedException
               sh """
                 docker run --rm \
                   -v \$(pwd):/usr/src \
                   -w /usr/src \
+                  --user \$(id -u):\$(id -g) \
                   sonarsource/sonar-scanner-cli:latest \
                   sonar-scanner \
                     -Dsonar.projectKey=shoes-frontend \
