@@ -112,23 +112,23 @@ pipeline {
     stage('Update K8s Manifests') {
       steps {
         sh """
+          # Replace images in manifests
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
-          for file in k8s/backend-deployment.yaml k8s/backend-service.yaml \
-                      k8s/frontend-deployment.yaml k8s/frontend-service.yaml \
-                      k8s/ingress.yaml k8s/postgres-pvc.yaml \
-                      k8s/postgres-service.yaml k8s/postgres-statefulset.yaml; do
-            docker run --rm \
-              -v /var/lib/jenkins/.kube/config:/root/.kube/config:ro \
-              -v /var/lib/jenkins/workspace/shoe-app-pipeline:/workdir \
-              -w /workdir \
-              bitnami/kubectl:latest \
-              apply -f \$file -n shoes --validate=false
-          done
+          # Apply manifests to EKS cluster
+          kubectl apply -f k8s/backend-deployment.yaml -n shoes --validate=false
+          kubectl apply -f k8s/frontend-deployment.yaml -n shoes --validate=false
+          kubectl apply -f k8s/backend-service.yaml -n shoes --validate=false
+          kubectl apply -f k8s/frontend-service.yaml -n shoes --validate=false
+          kubectl apply -f k8s/ingress.yaml -n shoes --validate=false
+          kubectl apply -f k8s/postgres-pvc.yaml -n shoes --validate=false
+          kubectl apply -f k8s/postgres-service.yaml -n shoes --validate=false
+          kubectl apply -f k8s/postgres-statefulset.yaml -n shoes --validate=false
         """
       }
     }
+
 
     stage('Wait for Pods') {
       steps {
