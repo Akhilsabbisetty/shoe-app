@@ -45,31 +45,27 @@ pipeline {
     }
 
     stage('SonarQube Scan - Frontend') {
-      steps {
-        dir('frontend') {
-          sh 'npm install'
-          sh 'npm run build'
-          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-            sh """
-              # Create local cache folder to avoid permission issues
-              mkdir -p .scannerwork
-
-              docker run --rm \
-                -v \$(pwd):/usr/src \
-                -v \$(pwd)/.scannerwork:/opt/sonar-scanner/.sonar/cache \
-                -w /usr/src \
-                sonarsource/sonar-scanner-cli:latest \
-                sonar-scanner \
-                  -Dsonar.projectKey=shoes-frontend \
-                  -Dsonar.sources=. \
-                  -Dsonar.host.url=$SONAR_URL \
-                  -Dsonar.token=$SONAR_TOKEN \
-                  -Dsonar.exclusions=node_modules/**,build/**
-            """
-          }
-        }
+  steps {
+    dir('frontend') {
+      sh 'npm install'
+      sh 'npm run build'
+      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        sh """
+          docker run --rm \
+            -v \$(pwd):/usr/src \
+            -w /usr/src \
+            sonarsource/sonar-scanner-cli:latest \
+            sonar-scanner \
+              -Dsonar.projectKey=shoes-frontend \
+              -Dsonar.sources=. \
+              -Dsonar.host.url=$SONAR_URL \
+              -Dsonar.token=$SONAR_TOKEN \
+              -Dsonar.exclusions=node_modules/**,build/**
+        """
       }
     }
+  }
+}
 
     stage('Build Backend Image') {
       steps {
