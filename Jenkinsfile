@@ -129,13 +129,6 @@ pipeline {
       }
     }
 
-
-    stage('Wait for Pods') {
-      steps {
-        sh "kubectl get pods -n shoes --watch"
-      }
-    }
-
     stage('ArgoCD Sync') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'argocd-creds', usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
