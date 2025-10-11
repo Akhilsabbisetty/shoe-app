@@ -45,34 +45,36 @@ pipeline {
     }
 
     stage('SonarQube Scan - Frontend') {
-  steps {
-    dir('frontend') {
-      sh 'npm install'
-      sh 'npm run build'
-      withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-        sh """
-          docker run --rm \
-            -v \$(pwd):/usr/src \
-            -w /usr/src \
-            sonarsource/sonar-scanner-cli:latest \
-            sonar-scanner \
-              -Dsonar.projectKey=shoes-frontend \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=$SONAR_URL \
-              -Dsonar.token=$SONAR_TOKEN \
-              -Dsonar.exclusions=node_modules/**,build/**
-        """
+      steps {
+        dir('frontend') {
+          sh 'npm install'
+          sh 'npm run build'
+          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+            sh """
+              docker run --rm \
+                -v \$(pwd):/usr/src \
+                -w /usr/src \
+                sonarsource/sonar-scanner-cli:latest \
+                sonar-scanner \
+                  -Dsonar.projectKey=shoes-frontend \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=$SONAR_URL \
+                  -Dsonar.token=$SONAR_TOKEN \
+                  -Dsonar.exclusions=node_modules/**,build/**
+            """
+          }
+        }
       }
     }
-  }
-}
 
     stage('Build Backend Image') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-          sh 'docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .'
-          sh 'docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}'
+          dir('backend') {
+            sh 'docker build -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .'
+            sh 'docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}'
+          }
         }
       }
     }
