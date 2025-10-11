@@ -6,7 +6,7 @@ pipeline {
     APP_NAME       = "shoe-app"
     DOCKER_IMAGE   = "akhilsabbisetty/shoe-app"
     ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
-    SONAR_URL      = "http://3.6.40.138:9000"  // 🔸 Update if different
+    SONAR_URL      = "http://3.6.40.138:9000"  // 🔸 Update if needed
     TRIVY_SEVERITY = "HIGH,CRITICAL"
   }
 
@@ -33,23 +33,29 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
           script {
-            // Backend Sonar Scan
+            // ✅ Backend Sonar Scan (Maven)
             dir('backend') {
               sh """
                 mvn sonar:sonar \
                   -Dsonar.host.url=$SONAR_URL \
-                  -Dsonar.login=$SONAR_TOKEN
+                  -Dsonar.token=$SONAR_TOKEN
               """
             }
 
-            // Frontend Sonar Scan
+            // ✅ Frontend Sonar Scan (Node + Scanner CLI)
             dir('frontend') {
+              sh 'sudo chown -R 1000:1000 .'  // fix for AccessDeniedException
               sh """
-                docker run --rm -v ${PWD}:/usr/src -w /usr/src sonarsource/sonar-scanner-cli \
-                  -Dsonar.projectKey=shoes-frontend \
-                  -Dsonar.sources=. \
-                  -Dsonar.host.url=$SONAR_URL \
-                  -Dsonar.login=$SONAR_TOKEN
+                docker run --rm \
+                  -v \$(pwd):/usr/src \
+                  -w /usr/src \
+                  sonarsource/sonar-scanner-cli:latest \
+                  sonar-scanner \
+                    -Dsonar.projectKey=shoes-frontend \
+                    -Dsonar.sources=. \
+                    -Dsonar.host.url=$SONAR_URL \
+                    -Dsonar.token=$SONAR_TOKEN \
+                    -Dsonar.exclusions=node_modules/**,build/**
               """
             }
           }
