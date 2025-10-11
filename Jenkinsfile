@@ -110,13 +110,17 @@ pipeline {
     }
 
     stage('Update K8s Manifests') {
-       steps {
-         sh """
-           sed -i "s|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g" k8s/backend-deployment.yaml
-           sed -i "s|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g" k8s/frontend-deployment.yaml
-          """
-       }
-    }
+      steps {
+        sh """
+          sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
+          sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
+
+          kubectl apply -f k8s/backend-deployment.yaml -n shoes
+          kubectl apply -f k8s/frontend-deployment.yaml -n shoes
+        """
+     }
+   }
+
 
 
     stage('ArgoCD Sync') {
