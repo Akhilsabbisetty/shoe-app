@@ -13,21 +13,14 @@ spec:
       labels:
         app: frontend
     spec:
-      serviceAccountName: shoes-app-sa
       containers:
       - name: frontend
-        image: akhilsabbisetty/shoe-app:frontend-latest
+        image: REPLACE_FRONTEND_IMAGE
         ports:
         - containerPort: 80
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: frontend
-  namespace: shoes
-spec:
-  selector:
-    app: frontend
-  ports:
-  - port: 80
-    targetPort: 80
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10

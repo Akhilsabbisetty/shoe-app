@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: shoes-app
+  name: shoe-app
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/<GITHUB_ORG>/shoes-app.git'
-    targetRevision: HEAD
+    repoURL: 'https://github.com/YOUR_USER/YOUR_REPO.git'
     path: k8s
+    targetRevision: HEAD
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: shoes

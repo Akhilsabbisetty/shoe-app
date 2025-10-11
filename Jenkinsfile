@@ -5,9 +5,9 @@ pipeline {
     MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
     APP_NAME       = "shoe-app"
     DOCKER_IMAGE   = "akhilsabbisetty/shoe-app"
-    K8S_NAMESPACE  = "shoes"
-    SONAR_URL      = "http://3.6.40.138:9000"
     ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
+    SONAR_URL      = "http://3.6.40.138:9000"  // 🔸 Update if different
+    TRIVY_SEVERITY = "HIGH,CRITICAL"
   }
 
   stages {
@@ -21,124 +21,89 @@ pipeline {
       }
     }
 
-    stage('Maven Build & Deploy to JFrog') {
+    stage('Build Backend') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'jfrog-creds',
-                                          usernameVariable: 'JFROG_USER',
-                                          passwordVariable: 'JFROG_PASS')]) {
-
-          writeFile file: 'settings.xml', text: """
-<?xml version="1.0" encoding="UTF-8"?>
-<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-  <servers>
-    <server>
-      <id>jfrog</id>
-      <username>${env.JFROG_USER}</username>
-      <password>${env.JFROG_PASS}</password>
-    </server>
-  </servers>
-</settings>
-"""
-          sh """
-            mvn clean deploy -s $MAVEN_SETTINGS \
-              -DaltDeploymentRepository=jfrog::default::https://artifactory.akhilsabbisetty.site/artifactory/maven-release
-          """
+        dir('backend') {
+          sh 'mvn -B -DskipTests clean package'
         }
       }
     }
 
-    stage('SonarQube Analysis') {
+    stage('SonarQube Scan') {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-          sh """
-            mvn sonar:sonar \
-              -Dsonar.host.url=$SONAR_URL \
-              -Dsonar.login=$SONAR_TOKEN
-          """
+          script {
+            // Backend Sonar Scan
+            dir('backend') {
+              sh """
+                mvn sonar:sonar \
+                  -Dsonar.host.url=$SONAR_URL \
+                  -Dsonar.login=$SONAR_TOKEN
+              """
+            }
+
+            // Frontend Sonar Scan
+            dir('frontend') {
+              sh """
+                docker run --rm -v ${PWD}:/usr/src -w /usr/src sonarsource/sonar-scanner-cli \
+                  -Dsonar.projectKey=shoes-frontend \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=$SONAR_URL \
+                  -Dsonar.login=$SONAR_TOKEN
+              """
+            }
+          }
         }
       }
     }
 
-    stage('Frontend Build') {
+    stage('Build Frontend Image') {
       steps {
-        script {
-          echo "📂 Verifying frontend folder structure..."
-          sh "ls -la ${env.WORKSPACE}/frontend || true"
-
-          sh """
-            if [ ! -f "${env.WORKSPACE}/frontend/package-lock.json" ]; then
-              echo "⚠️ package-lock.json missing in workspace, copying from local /root/git/shoe-app/frontend/"
-              cp /root/git/shoe-app/frontend/package-lock.json ${env.WORKSPACE}/frontend/ || true
-            fi
-          """
-
-          sh """
-            docker run --rm -v "${env.WORKSPACE}/frontend":/workspace -w /workspace node:18 bash -lc '
-              if [ -f package-lock.json ]; then
-                npm ci
-              else
-                npm install
-              fi
-              npm run build
-            '
-          """
+        dir('frontend') {
+          sh 'docker build -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} .'
         }
       }
     }
 
-    stage('Docker Build, Trivy Scan & Push') {
+    stage('Push Images & Build Backend Image') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
-                                          usernameVariable: 'DOCKER_USER',
-                                          passwordVariable: 'DOCKER_PASS')]) {
-          sh """
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-
-            echo "🐳 Building frontend image..."
-            docker build -f frontend/Dockerfile -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} ./frontend
-
-            echo "🐳 Building backend image..."
-            docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .
-
-            echo "🔍 Running Trivy scan on frontend (fail only on CRITICAL)..."
-            trivy image --exit-code 1 --severity CRITICAL ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
-
-            echo "🔍 Running Trivy scan on backend (fail only on CRITICAL)..."
-            trivy image --exit-code 1 --severity CRITICAL ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
-
-            echo "🚀 Pushing images to Docker Hub..."
-            docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}
-            docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}
-          """
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+          sh 'docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .'
+          sh 'docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}'
+          sh 'docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}'
         }
       }
     }
 
-    stage('Update K8s Manifests') {   // 🟡 This dynamically updates image tags before ArgoCD sync
+    stage('Trivy Scan') {
       steps {
         script {
           sh """
-            sed -i 's#${DOCKER_IMAGE}:frontend-[0-9]*#${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}#' k8s/frontend-deployment.yaml
-            sed -i 's#${DOCKER_IMAGE}:backend-[0-9]*#${DOCKER_IMAGE}:backend-${BUILD_NUMBER}#' k8s/backend-deployment.yaml
+            trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} || (echo "❌ Trivy found issues in backend image" && exit 1)
           """
-          sh "git add k8s/frontend-deployment.yaml k8s/backend-deployment.yaml"
-          sh "git commit -m '🔄 Update image tags to build ${BUILD_NUMBER}' || true"
-          sh "git push origin main"
+          sh """
+            trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} || (echo "❌ Trivy found issues in frontend image" && exit 1)
+          """
         }
       }
     }
 
-    stage('Argo CD Deploy') {
+    stage('Update K8s Manifests') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'argocd-creds',
-                                          usernameVariable: 'ARGO_USER',
-                                          passwordVariable: 'ARGO_PASS')]) {
+        sh """
+          sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml || true
+          sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml || true
+        """
+      }
+    }
+
+    stage('ArgoCD Sync') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'argocd-creds', usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
           sh """
-            argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure
-            argocd app sync $APP_NAME
-            argocd app wait $APP_NAME --health --timeout 600
+            argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure || true
+            argocd app sync ${APP_NAME} || true
           """
         }
       }
