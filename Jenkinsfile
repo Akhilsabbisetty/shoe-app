@@ -21,101 +21,89 @@ pipeline {
       }
     }
 
-    stage('Build & Sonar Scan (Parallel)') {
-      parallel {
-
-        stage('Backend Build + Sonar') {
-          steps {
-            dir('backend') {
-              // Build Backend
-              sh 'mvn -B -DskipTests clean package'
-
-              // SonarQube Scan
-              withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                sh """
-                  mvn sonar:sonar \
-                    -Dsonar.host.url=$SONAR_URL \
-                    -Dsonar.token=$SONAR_TOKEN
-                """
-              }
-            }
-          }
+    stage('Build Backend') {
+      steps {
+        dir('backend') {
+          sh 'mvn -B -DskipTests clean package'
         }
+      }
+    }
 
-        stage('Frontend Build + Sonar') {
-          steps {
-            dir('frontend') {
-              // Install & Build Frontend
-              sh 'npm install'
-              sh 'npm run build'
-
-              // SonarQube Scan via Docker Scanner CLI
-              withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-                sh """
-                  docker run --rm \
-                    -v \$(pwd):/usr/src \
-                    -w /usr/src \
-                    --user \$(id -u):\$(id -g) \
-                    sonarsource/sonar-scanner-cli:latest \
-                    sonar-scanner \
-                      -Dsonar.projectKey=shoes-frontend \
-                      -Dsonar.sources=. \
-                      -Dsonar.host.url=$SONAR_URL \
-                      -Dsonar.token=$SONAR_TOKEN \
-                      -Dsonar.exclusions=node_modules/**,build/**
-                """
-              }
-            }
+    stage('SonarQube Scan - Backend') {
+      steps {
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+          dir('backend') {
+            sh """
+              mvn sonar:sonar \
+                -Dsonar.host.url=$SONAR_URL \
+                -Dsonar.token=$SONAR_TOKEN
+            """
           }
         }
       }
     }
 
-    stage('Docker Build & Push (Parallel)') {
-      parallel {
-        stage('Backend Docker Build & Push') {
-          steps {
-            withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-              sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-              sh 'docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .'
-              sh 'docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}'
-            }
-          }
-        }
-
-        stage('Frontend Docker Build & Push') {
-          steps {
-            dir('frontend') {
-              withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                sh 'docker build -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} .'
-                sh 'docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}'
-              }
-            }
+    stage('SonarQube Scan - Frontend') {
+      steps {
+        dir('frontend') {
+          sh 'npm install'
+          sh 'npm run build'
+          withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+            sh """
+              docker run --rm \
+                -v \$(pwd):/usr/src \
+                -w /usr/src \
+                --user \$(id -u):\$(id -g) \
+                sonarsource/sonar-scanner-cli:latest \
+                sonar-scanner \
+                  -Dsonar.projectKey=shoes-frontend \
+                  -Dsonar.sources=. \
+                  -Dsonar.host.url=$SONAR_URL \
+                  -Dsonar.token=$SONAR_TOKEN \
+                  -Dsonar.exclusions=node_modules/**,build/**
+            """
           }
         }
       }
     }
 
-    stage('Trivy Scan (Parallel)') {
-      parallel {
-        stage('Backend Trivy Scan') {
-          steps {
-            sh """
-              trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} \
-              || (echo "❌ Trivy found issues in backend image" && exit 1)
-            """
-          }
+    stage('Build Backend Image') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+          sh 'docker build -f backend/Dockerfile -t ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} .'
+          sh 'docker push ${DOCKER_IMAGE}:backend-${BUILD_NUMBER}'
         }
+      }
+    }
 
-        stage('Frontend Trivy Scan') {
-          steps {
-            sh """
-              trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} \
-              || (echo "❌ Trivy found issues in frontend image" && exit 1)
-            """
+    stage('Build Frontend Image') {
+      steps {
+        dir('frontend') {
+          withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+            sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+            sh 'docker build -t ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} .'
+            sh 'docker push ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}'
           }
         }
+      }
+    }
+
+    stage('Trivy Scan - Backend Image') {
+      steps {
+        sh """
+          trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} \
+          || (echo "❌ Trivy found issues in backend image" && exit 1)
+        """
+      }
+    }
+
+    stage('Trivy Scan - Frontend Image') {
+      steps {
+        sh """
+          trivy image --exit-code 1 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} \
+          || (echo "❌ Trivy found issues in frontend image" && exit 1)
+        """
       }
     }
 
