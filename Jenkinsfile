@@ -8,7 +8,6 @@ pipeline {
     ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
     SONAR_URL      = "http://3.6.40.138:9000"
     TRIVY_SEVERITY = "HIGH,CRITICAL"
-    KUBECONFIG_PATH = "/var/lib/jenkins/.kube/config"    // ✅ Single source of truth for kubeconfig
   }
 
   stages {
@@ -110,28 +109,30 @@ pipeline {
       }
     }
 
-    stage('Update K8s Manifests & Deploy') {
+    stage('Update K8s Manifests') {
       steps {
         sh """
-          # ✅ Inject new image tags into manifests
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
-          # ✅ Apply manifests using KUBECONFIG, no need for --server hardcoding
-          docker run --rm \
-            -v ${KUBECONFIG_PATH}:/root/.kube/config:ro \
-            -v ${env.WORKSPACE}:/workdir \
-            -w /workdir \
-            bitnami/kubectl:latest \
-            apply -f k8s/backend-deployment.yaml -n shoes
-
-          docker run --rm \
-            -v ${KUBECONFIG_PATH}:/root/.kube/config:ro \
-            -v ${env.WORKSPACE}:/workdir \
-            -w /workdir \
-            bitnami/kubectl:latest \
-            apply -f k8s/frontend-deployment.yaml -n shoes
+          for file in k8s/backend-deployment.yaml k8s/backend-service.yaml \
+                      k8s/frontend-deployment.yaml k8s/frontend-service.yaml \
+                      k8s/ingress.yaml k8s/postgres-pvc.yaml \
+                      k8s/postgres-service.yaml k8s/postgres-statefulset.yaml; do
+            docker run --rm \
+              -v /var/lib/jenkins/.kube/config:/root/.kube/config:ro \
+              -v /var/lib/jenkins/workspace/shoe-app-pipeline:/workdir \
+              -w /workdir \
+              bitnami/kubectl:latest \
+              apply -f \$file -n shoes --validate=false
+          done
         """
+      }
+    }
+
+    stage('Wait for Pods') {
+      steps {
+        sh "kubectl get pods -n shoes --watch"
       }
     }
 
