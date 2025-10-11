@@ -117,15 +117,17 @@ pipeline {
 
           docker run --rm \
             -v /var/lib/jenkins/.kube:/root/.kube \
-            -v ${WORKSPACE}:/workdir -w /workdir \
+            -v /var/lib/jenkins/workspace/shoe-app-pipeline:/workdir \
+            -w /workdir \
             bitnami/kubectl:latest \
-            kubectl --server=https://10.0.101.179:443 apply -f k8s/backend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
+            --server=https://10.0.101.179:443 apply -f k8s/backend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
 
            docker run --rm \
              -v /var/lib/jenkins/.kube:/root/.kube \
-             -v ${WORKSPACE}:/workdir -w /workdir \
+             -v /var/lib/jenkins/workspace/shoe-app-pipeline:/workdir \
+             -w /workdir \
              bitnami/kubectl:latest \
-             kubectl --server=https://10.0.101.179:443 apply -f k8s/frontend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
+             --server=https://10.0.101.179:443 apply -f k8s/frontend-deployment.yaml -n shoes --kubeconfig=/root/.kube/config
         """
      }
   }
