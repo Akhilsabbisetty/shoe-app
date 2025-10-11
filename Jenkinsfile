@@ -115,8 +115,11 @@ pipeline {
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
-          kubectl apply -f k8s/backend-deployment.yaml -n shoes
-          kubectl apply -f k8s/frontend-deployment.yaml -n shoes
+          docker run --rm -v \$HOME/.kube:/root/.kube -v \$(pwd):/workdir -w /workdir bitnami/kubectl:latest \
+            kubectl apply -f k8s/backend-deployment.yaml -n shoes
+
+          docker run --rm -v \$HOME/.kube:/root/.kube -v \$(pwd):/workdir -w /workdir bitnami/kubectl:latest \
+            kubectl apply -f k8s/frontend-deployment.yaml -n shoes
         """
      }
    }
