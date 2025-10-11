@@ -13,9 +13,12 @@ spec:
       labels:
         app: backend
     spec:
+      # Add this to pull images from Docker Hub using your secret
+      imagePullSecrets:
+      - name: dockerhub-creds
       containers:
       - name: backend
-        image: akhilsabbisetty/shoe-app:backend-latest
+        image: akhilsabbisetty/shoe-app:backend-<BUILD_NUMBER>
         ports:
         - containerPort: 8080
         readinessProbe:

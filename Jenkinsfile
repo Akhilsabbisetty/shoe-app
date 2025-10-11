@@ -5,7 +5,7 @@ pipeline {
     MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
     APP_NAME       = "shoe-app"
     DOCKER_IMAGE   = "akhilsabbisetty/shoe-app"
-    ARGOCD_SERVER  = "argocd.akhilsabbisetty.site"
+    ARGOCD_SERVER  = "a85d1510c705a43a19eabc55ff45e3f0-216968049.ap-south-1.elb.amazonaws.com"
     SONAR_URL      = "http://3.6.40.138:9000"
     TRIVY_SEVERITY = "HIGH,CRITICAL"
   }
