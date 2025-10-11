@@ -51,10 +51,13 @@ pipeline {
           sh 'npm run build'
           withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
             sh """
+              # Create local cache folder to avoid permission issues
+              mkdir -p .scannerwork
+
               docker run --rm \
                 -v \$(pwd):/usr/src \
+                -v \$(pwd)/.scannerwork:/opt/sonar-scanner/.sonar/cache \
                 -w /usr/src \
-                --user \$(id -u):\$(id -g) \
                 sonarsource/sonar-scanner-cli:latest \
                 sonar-scanner \
                   -Dsonar.projectKey=shoes-frontend \
