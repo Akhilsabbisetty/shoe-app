@@ -33,7 +33,8 @@ spec:
   - metadata:
       name: postgres-data
     spec:
-      accessModes: [ "ReadWriteOnce" ]
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: gp2       # <-- added
       resources:
         requests:
-          storage: 1Gi
+          storage: 5Gi

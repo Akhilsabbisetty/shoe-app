@@ -18,7 +18,7 @@ spec:
       - name: dockerhub-creds
       containers:
       - name: backend
-        image: akhilsabbisetty/shoe-app:backend-83
+        image: akhilsabbisetty/shoe-app:backend-84
         ports:
         - containerPort: 8080
         readinessProbe:
