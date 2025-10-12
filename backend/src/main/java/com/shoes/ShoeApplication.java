@@ -6,6 +6,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class ShoeBackendApplication {
     public static void main(String[] args) {
-        SpringApplication.run(ShoeBackendApplication.class, args);
+        SpringApplication.run(ShoeApplication.class, args);
     }
 }
