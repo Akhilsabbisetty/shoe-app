@@ -122,7 +122,6 @@ pipeline {
           kubectl apply -f k8s/backend-service.yaml -n shoes --validate=false
           kubectl apply -f k8s/frontend-service.yaml -n shoes --validate=false
           kubectl apply -f k8s/ingress.yaml -n shoes --validate=false
-          kubectl apply -f k8s/postgres-pvc.yaml -n shoes --validate=false
           kubectl apply -f k8s/postgres-service.yaml -n shoes --validate=false
           kubectl apply -f k8s/postgres-statefulset.yaml -n shoes --validate=false
         """
