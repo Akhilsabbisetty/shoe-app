@@ -18,7 +18,7 @@ spec:
       - name: dockerhub-creds
       containers:
       - name: frontend
-        image: akhilsabbisetty/shoe-app:frontend-94
+        image: akhilsabbisetty/shoe-app:frontend-96
         ports:
         - containerPort: 80
         readinessProbe:
