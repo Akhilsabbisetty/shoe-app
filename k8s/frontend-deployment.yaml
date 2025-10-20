@@ -19,7 +19,7 @@ spec:
       labels:
         app: frontend
       annotations:
-        prometheus.io/scrape: "true"
+        prometheus.io/scrape: "false"
         prometheus.io/port: "80"
         prometheus.io/path: "/"
     spec:
@@ -27,7 +27,7 @@ spec:
       - name: dockerhub-creds
       containers:
       - name: frontend
-        image: akhilsabbisetty/shoe-app:frontend-102
+        image: akhilsabbisetty/shoe-app:frontend-103
         ports:
         - containerPort: 80
         readinessProbe:
