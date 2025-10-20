@@ -3,6 +3,12 @@ kind: Deployment
 metadata:
   name: backend
   namespace: shoes
+  labels:
+    app: backend
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/actuator/prometheus"
 spec:
   replicas: 2
   selector:
@@ -12,13 +18,16 @@ spec:
     metadata:
       labels:
         app: backend
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
     spec:
-      # Add this to pull images from Docker Hub using your secret
       imagePullSecrets:
       - name: dockerhub-creds
       containers:
       - name: backend
-        image: akhilsabbisetty/shoe-app:backend-100
+        image: akhilsabbisetty/shoe-app:backend-101
         ports:
         - containerPort: 8080
         readinessProbe:
