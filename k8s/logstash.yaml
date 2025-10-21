@@ -1,3 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-pipeline
+  namespace: logging
+data:
+  logstash.conf: |
+    input {
+      file {
+        path => "/var/log/containers/*.log"
+        start_position => "beginning"
+        sincedb_path => "/dev/null"
+        codec => "json"
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch:9200"]
+        index => "k8s-logs-%{+YYYY.MM.dd}"
+      }
+      stdout { codec => rubydebug }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,8 +38,21 @@ spec:
         app: logstash
     spec:
       containers:
-        - name: logstash
-          image: docker.elastic.co/logstash/logstash:7.17.0
-          ports:
-            - containerPort: 5044
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:7.17.0
+        ports:
+        - containerPort: 5044
+        volumeMounts:
+        - name: logstash-pipeline
+          mountPath: /usr/share/logstash/pipeline/logstash.conf
+          subPath: logstash.conf
+        - name: varlog
+          mountPath: /var/log/containers
+      volumes:
+      - name: logstash-pipeline
+        configMap:
+          name: logstash-pipeline
+      - name: varlog
+        hostPath:
+          path: /var/log/containers
 
