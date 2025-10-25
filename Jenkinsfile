@@ -1,6 +1,11 @@
 pipeline {
   agent any
 
+  // 🔁 Automatically trigger pipeline when a commit is pushed to GitHub
+  triggers {
+    githubPush()
+  }
+
   environment {
     MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
     APP_NAME       = "shoe-app"
@@ -15,6 +20,7 @@ pipeline {
     stage('Checkout') {
       steps {
         cleanWs()
+        echo "🔄 Checking out latest code from GitHub..."
         git branch: 'main',
             url: 'https://github.com/Akhilsabbisetty/shoe-app.git',
             credentialsId: 'github-creds'
@@ -25,6 +31,7 @@ pipeline {
     stage('Build Backend') {
       steps {
         dir('backend') {
+          echo "⚙️ Building backend using Maven..."
           sh 'mvn -B -DskipTests clean package'
         }
       }
@@ -34,6 +41,7 @@ pipeline {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
           dir('backend') {
+            echo "🔍 Running SonarQube analysis on backend..."
             sh """
               mvn sonar:sonar \
                 -Dsonar.host.url=$SONAR_URL \
@@ -47,6 +55,7 @@ pipeline {
     stage('SonarQube Scan - Frontend') {
       steps {
         dir('frontend') {
+          echo "🔍 Running SonarQube analysis on frontend..."
           sh 'npm install'
           sh 'npm run build'
           withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
@@ -69,6 +78,7 @@ pipeline {
 
     stage('Build Backend Image') {
       steps {
+        echo "🐳 Building and pushing backend Docker image..."
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
           dir('backend') {
@@ -81,6 +91,7 @@ pipeline {
 
     stage('Build Frontend Image') {
       steps {
+        echo "🐳 Building and pushing frontend Docker image..."
         dir('frontend') {
           withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
             sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
@@ -93,6 +104,7 @@ pipeline {
 
     stage('Trivy Scan - Backend Image') {
       steps {
+        echo "🧪 Scanning backend image with Trivy..."
         sh """
           trivy image --exit-code 0 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:backend-${BUILD_NUMBER} \
           || echo "⚠️ Trivy found issues in backend image (continuing...)"
@@ -102,6 +114,7 @@ pipeline {
 
     stage('Trivy Scan - Frontend Image') {
       steps {
+        echo "🧪 Scanning frontend image with Trivy..."
         sh """
           trivy image --exit-code 0 --severity ${TRIVY_SEVERITY} ${DOCKER_IMAGE}:frontend-${BUILD_NUMBER} \
           || echo "⚠️ Trivy found issues in frontend image (continuing...)"
@@ -111,12 +124,12 @@ pipeline {
 
     stage('Update K8s Manifests') {
       steps {
+        echo "📝 Updating Kubernetes manifests with new image tags..."
         sh """
-          # Replace images in manifests
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
-          # Apply manifests to EKS cluster
+          echo "🚀 Applying updated manifests to Kubernetes..."
           kubectl apply -f k8s/backend-deployment.yaml -n shoes --validate=false
           kubectl apply -f k8s/frontend-deployment.yaml -n shoes --validate=false
           kubectl apply -f k8s/backend-service.yaml -n shoes --validate=false
@@ -130,18 +143,25 @@ pipeline {
 
     stage('ArgoCD Sync') {
       steps {
+        echo "🔄 Triggering ArgoCD application sync..."
         withCredentials([usernamePassword(credentialsId: 'argocd-creds', usernameVariable: 'ARGO_USER', passwordVariable: 'ARGO_PASS')]) {
           sh """
             argocd login $ARGOCD_SERVER --username $ARGO_USER --password $ARGO_PASS --insecure || true
-            argocd app sync ${APP_NAME} || true
+            argocd app sync ${APP_NAME} --async || true
+            argocd app wait ${APP_NAME} --health || true
           """
         }
       }
     }
-
   }
 
   post {
+    success {
+      echo "✅ Deployment successful! Git commit changes have been deployed to Kubernetes."
+    }
+    failure {
+      echo "❌ Pipeline failed. Please check Jenkins logs for errors."
+    }
     always {
       cleanWs()
     }
