@@ -1,32 +1,41 @@
-apiVersion: v1
-kind: ConfigMap
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: logstash-pipeline
+  name: logstash
   namespace: logging
-data:
-  logstash.conf: |
-    input {
-      beats {
-        port => 5044
-      }
-    }
-
-    filter {
-      if [kubernetes][container][name] == "backend" {
-        mutate { add_tag => ["backend"] }
-      }
-      if [kubernetes][container][name] == "frontend" {
-        mutate { add_tag => ["frontend"] }
-      }
-      if [kubernetes][container][name] == "postgres" {
-        mutate { add_tag => ["postgres"] }
-      }
-    }
-
-    output {
-      elasticsearch {
-        hosts => ["http://elasticsearch.logging.svc.cluster.local:9200"]
-        index => "k8s-logs-%{+YYYY.MM.dd}"
-      }
-      stdout { codec => rubydebug }
-    }
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logstash
+  template:
+    metadata:
+      labels:
+        app: logstash
+    spec:
+      containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:7.17.0
+        ports:
+        - containerPort: 5044
+        volumeMounts:
+        - name: pipeline
+          mountPath: /usr/share/logstash/pipeline/logstash.conf
+          subPath: logstash.conf
+      volumes:
+      - name: pipeline
+        configMap:
+          name: logstash-pipeline
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  namespace: logging
+spec:
+  selector:
+    app: logstash
+  ports:
+  - port: 5044
+    targetPort: 5044
+  type: ClusterIP
