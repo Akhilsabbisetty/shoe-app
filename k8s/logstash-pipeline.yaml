@@ -12,7 +12,6 @@ data:
     }
 
     filter {
-      # Example filters, customize for your logs
       if [kubernetes][container][name] == "backend" {
         mutate { add_tag => ["backend"] }
       }
@@ -26,9 +25,8 @@ data:
 
     output {
       elasticsearch {
-        hosts => ["http://elasticsearch:80"]
-        index => "%{[@metadata][beat]}-%{+YYYY.MM.dd}"
+        hosts => ["http://elasticsearch.logging.svc.cluster.local:9200"]
+        index => "k8s-logs-%{+YYYY.MM.dd}"
       }
       stdout { codec => rubydebug }
     }
-
