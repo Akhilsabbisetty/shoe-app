@@ -18,7 +18,7 @@ spec:
         image: docker.elastic.co/kibana/kibana:7.17.0
         env:
         - name: ELASTICSEARCH_HOSTS
-          value: "http://elasticsearch:80"
+          value: "http://elasticsearch.logging.svc.cluster.local:9200"
         ports:
         - containerPort: 5601
 ---
@@ -31,7 +31,6 @@ spec:
   selector:
     app: kibana
   ports:
-    - port: 5601
-      targetPort: 5601
+  - port: 5601
+    targetPort: 5601
   type: LoadBalancer
-
