@@ -1,6 +1,7 @@
 pipeline {
   agent any
 
+  // 🔁 Automatically trigger pipeline when a commit is pushed to GitHub
   triggers {
     githubPush()
   }
@@ -9,10 +10,8 @@ pipeline {
     MAVEN_SETTINGS = "${env.WORKSPACE}/settings.xml"
     APP_NAME       = "shoe-app"
     DOCKER_IMAGE   = "akhilsabbisetty/shoes-app"
-    JFROG_URL      = "http://15.206.94.240:8082/artifactory"
-    JFROG_REPO     = "maven-local"
     ARGOCD_SERVER  = "a57b9226b8be14aec80ed9dfd9fed2ec-1710991198.ap-south-1.elb.amazonaws.com"
-    SONAR_URL      = "http://15.206.94.240:9000/"
+    SONAR_URL      = "http://http://15.206.94.240//:9000"
     TRIVY_SEVERITY = "HIGH,CRITICAL"
   }
 
@@ -38,42 +37,16 @@ pipeline {
       }
     }
 
-    // ✅ JFROG Upload
-    stage('Upload JAR to JFrog') {
-      steps {
-        dir('backend') {
-          withCredentials([usernamePassword(
-            credentialsId: 'jfrog-creds',
-            usernameVariable: 'JFROG_USER',
-            passwordVariable: 'JFROG_PASS'
-          )]) {
-            sh """
-              GROUP_ID=com/example/shoes
-              ARTIFACT_ID=shoe-backend
-              VERSION=${BUILD_NUMBER}
-
-              JAR_FILE=\$(ls target/*.jar | head -n 1)
-
-              curl -u $JFROG_USER:$JFROG_PASS \
-                -T \$JAR_FILE \
-                $JFROG_URL/$JFROG_REPO/\$GROUP_ID/\$ARTIFACT_ID/\$VERSION/\$ARTIFACT_ID-\$VERSION.jar
-            """
-          }
-        }
-      }
-    }
-
-    // ✅ FIXED: Backend SonarQube Scan (uses Maven plugin, no sonar-scanner CLI needed)
     stage('SonarQube Scan - Backend') {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
           dir('backend') {
-            sh '''
+            echo "🔍 Running SonarQube analysis on backend..."
+            sh """
               mvn sonar:sonar \
-                -Dsonar.projectKey=shoes-backend \
                 -Dsonar.host.url=$SONAR_URL \
-                -Dsonar.login=$SONAR_TOKEN
-            '''
+                -Dsonar.token=$SONAR_TOKEN
+            """
           }
         }
       }
@@ -156,6 +129,7 @@ pipeline {
           sed -i 's|REPLACE_BACKEND_IMAGE|${DOCKER_IMAGE}:backend-${BUILD_NUMBER}|g' k8s/backend-deployment.yaml
           sed -i 's|REPLACE_FRONTEND_IMAGE|${DOCKER_IMAGE}:frontend-${BUILD_NUMBER}|g' k8s/frontend-deployment.yaml
 
+          echo "🚀 Applying updated manifests to Kubernetes..."
           kubectl apply -f k8s/backend-deployment.yaml -n shoes --validate=false
           kubectl apply -f k8s/frontend-deployment.yaml -n shoes --validate=false
           kubectl apply -f k8s/backend-service.yaml -n shoes --validate=false
