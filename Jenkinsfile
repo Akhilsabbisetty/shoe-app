@@ -38,6 +38,7 @@ pipeline {
       }
     }
 
+    // ✅ JFROG Upload
     stage('Upload JAR to JFrog') {
       steps {
         dir('backend') {
@@ -53,7 +54,7 @@ pipeline {
 
               JAR_FILE=\$(ls target/*.jar | head -n 1)
 
-              curl -u \$JFROG_USER:\$JFROG_PASS \
+              curl -u $JFROG_USER:$JFROG_PASS \
                 -T \$JAR_FILE \
                 $JFROG_URL/$JFROG_REPO/\$GROUP_ID/\$ARTIFACT_ID/\$VERSION/\$ARTIFACT_ID-\$VERSION.jar
             """
@@ -62,16 +63,15 @@ pipeline {
       }
     }
 
+    // ✅ FIXED: Backend SonarQube Scan (uses Maven plugin, no sonar-scanner CLI needed)
     stage('SonarQube Scan - Backend') {
       steps {
         withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
           dir('backend') {
             sh '''
-              sonar-scanner \
+              mvn sonar:sonar \
                 -Dsonar.projectKey=shoes-backend \
-                -Dsonar.sources=src \
-                -Dsonar.java.binaries=target \
-                -Dsonar.host.url=http://15.206.94.240:9000 \
+                -Dsonar.host.url=$SONAR_URL \
                 -Dsonar.login=$SONAR_TOKEN
             '''
           }
